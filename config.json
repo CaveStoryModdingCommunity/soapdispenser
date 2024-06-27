@@ -1,0 +1,12 @@
+{
+	"room_verification_bounds": "InBounds",
+	"room_verification_mode": "TileTypes",
+    "room_directory": "recreations/2010_11_13",
+	"entity_path": "recreations/2010_11_13/entities.json",
+	"attributes_path": "recreations/map.attributes",
+	"max_player_movement_nodes_per_packet": 4,
+	"max_player_distance_per_movement_node": 20,
+	"max_player_distance_per_packet": 20,
+	"max_players": 64,
+	"address": "127.0.0.1:1002"
+}

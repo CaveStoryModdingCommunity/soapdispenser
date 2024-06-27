@@ -1,0 +1,215 @@
+[
+{
+	"type": "Closer",
+	"x": 55,
+	"y": 96
+},
+{
+	"type": "Closer",
+	"x": 54,
+	"y": 97
+},
+{
+	"type": "Closer",
+	"x": 55,
+	"y": 98
+},
+{
+	"type": "Closer",
+	"x": 30,
+	"y": 83
+},
+{
+	"type": "Closer",
+	"x": 31,
+	"y": 86
+},
+{
+	"type": "Closer",
+	"x": 26,
+	"y": 87
+},
+{
+	"type": "Closer",
+	"x": 12,
+	"y": 97
+},
+{
+	"type": "Closer",
+	"x": 11,
+	"y": 99
+},
+{
+	"type": "Closer",
+	"x": 4,
+	"y": 100
+},
+{
+	"type": "Closer",
+	"x": 7,
+	"y": 102
+},
+{
+	"type": "Closer",
+	"x": 2,
+	"y": 107
+},
+{
+	"type": "Closer",
+	"x": 4,
+	"y": 107
+},
+{
+	"type": "Crawl",
+	"x": 4,
+	"y": 115
+},
+{
+	"type": "Rounder",
+	"x": 10,
+	"y": 128
+},
+{
+	"type": "Goal",
+	"x": 10,
+	"y": 128
+},
+{
+	"type": "Closer",
+	"x": 66,
+	"y": 75
+},
+{
+	"type": "Cross",
+	"x": 83,
+	"y": 55
+},
+{
+	"type": "Gate",
+	"x": 110,
+	"y": 48,
+	"open_direction": 0,
+	"switches": [
+	{
+		"x": 107,
+		"y": 51
+	},
+	{
+		"x": 113,
+		"y": 51
+	},
+	{
+		"x": 110,
+		"y": 54
+	}]
+},
+{
+	"type": "Shield",
+	"x": 105,
+	"y": 57
+},
+{
+	"type": "Shield",
+	"x": 115,
+	"y": 57
+},
+{
+	"type": "Chase",
+	"x": 110,
+	"y": 58
+},
+{
+	"type": "Hummer",
+	"x": 83,
+	"y": 41,
+	"direction": 3
+},
+{
+	"type": "Hummer",
+	"x": 88,
+	"y": 41
+},
+{
+	"type": "Rounder",
+	"x": 92,
+	"y": 43,
+	"direction": 1
+},
+{
+	"type": "Rounder",
+	"x": 90,
+	"y": 37,
+	"direction": 0
+},
+{
+	"type": "Rounder",
+	"x": 90,
+	"y": 37,
+	"direction": 2
+},
+{
+	"type": "Hummer",
+	"x": 85,
+	"y": 37
+},
+{
+	"type": "Crawl",
+	"x": 72,
+	"y": 37
+},
+{
+	"type": "Closer",
+	"x": 108,
+	"y": 41
+},
+{
+	"type": "Closer",
+	"x": 112,
+	"y": 41
+},
+{
+	"type": "Closer",
+	"x": 110,
+	"y": 37
+},
+{
+	"type": "Crawl",
+	"x": 95,
+	"y": 6
+},
+{
+	"type": "Rounder",
+	"x": 94,
+	"y": 10
+},
+{
+	"type": "Sword",
+	"x": 89,
+	"y": 3
+},
+{
+	"type": "Sword",
+	"x": 89,
+	"y": 12
+},
+{
+	"type": "Crawl",
+	"x": 50,
+	"y": 75
+},
+{
+	"type": "Snail",
+	"x": 43,
+	"y": 12
+},
+{
+	"type": "Closer",
+	"x": 4,
+	"y": 70
+},
+{
+	"type": "Closer",
+	"x": 16,
+	"y": 67
+}
+]

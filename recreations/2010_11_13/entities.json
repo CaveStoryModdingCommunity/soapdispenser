@@ -1,0 +1,297 @@
+[{
+	"type": "Crawl",
+	"x": 36,
+	"y": 15
+},
+{
+	"type": "Hummer",
+	"x": 29,
+	"y": 8
+},
+{
+	"type": "Hummer",
+	"x": 24,
+	"y": 11
+},
+{
+	"type": "Hummer",
+	"x": 28,
+	"y": 12
+},
+{
+	"type": "Rounder",
+	"x": 32,
+	"y": 13
+},
+{
+	"type": "Rounder",
+	"x": 25,
+	"y": 13
+},
+{
+	"type": "Rounder",
+	"x": 26,
+	"y": 9
+},
+{
+	"type": "Hummer",
+	"x": 84,
+	"y": 37
+},
+{
+	"type": "Shield",
+	"x": 50,
+	"y": 22
+},
+{
+	"type": "Gate",
+	"x": 50,
+	"y": 7,
+	"open_direction": 0,
+	"switches": [
+	{
+		"x": 47,
+		"y": 10
+	},
+	{
+		"x": 53,
+		"y": 10
+	},
+	{
+		"x": 50,
+		"y": 13
+	}]
+},
+{
+	"type": "Shield",
+	"x": 47,
+	"y": 5
+},
+{
+	"type": "Sword",
+	"x": 53,
+	"y": 5
+},
+{
+	"type": "Sword",
+	"x": 9,
+	"y": 20
+},
+{
+	"type": "Shield",
+	"x": 9,
+	"y": 25
+},
+{
+	"type": "Rounder",
+	"x": 15,
+	"y": 20,
+	"direction": 3
+},
+{
+	"type": "Hummer",
+	"x": 15,
+	"y": 25,
+	"direction": 1
+},
+{
+	"type": "Crawl",
+	"x": 88,
+	"y": 22
+},
+{
+	"type": "Crawl",
+	"x": 89,
+	"y": 21
+},
+{
+	"type": "Closer",
+	"x": 55,
+	"y": 96
+},
+{
+	"type": "Closer",
+	"x": 54,
+	"y": 97
+},
+{
+	"type": "Closer",
+	"x": 55,
+	"y": 98
+},
+{
+	"type": "Closer",
+	"x": 30,
+	"y": 83
+},
+{
+	"type": "Closer",
+	"x": 31,
+	"y": 86
+},
+{
+	"type": "Closer",
+	"x": 26,
+	"y": 87
+},
+{
+	"type": "Closer",
+	"x": 100,
+	"y": 112
+},
+{
+	"type": "Closer",
+	"x": 96,
+	"y": 113
+},
+{
+	"type": "Closer",
+	"x": 84,
+	"y": 114
+},
+{
+	"type": "Goal",
+	"x": 43,
+	"y": 113
+},
+{
+	"type": "Hummer",
+	"x": 43,
+	"y": 113
+},
+{
+	"type": "Goal",
+	"x": 30,
+	"y": 113
+},
+{
+	"type": "Chase",
+	"x": 3,
+	"y": 20
+},
+{
+	"type": "Closer",
+	"x": 90,
+	"y": 37
+},
+{
+	"type": "Closer",
+	"x": 91,
+	"y": 37
+},
+{
+	"type": "Closer",
+	"x": 92,
+	"y": 37
+},
+{
+	"type": "Chase",
+	"x": 110,
+	"y": 48
+},
+{
+	"type": "Chase",
+	"x": 110,
+	"y": 58
+},
+{
+	"type": "Crawl",
+	"x": 30,
+	"y": 73
+},
+{
+	"type": "Closer",
+	"x": 47,
+	"y": 79
+},
+{
+	"type": "Closer",
+	"x": 9,
+	"y": 65
+},
+{
+	"type": "Closer",
+	"x": 10,
+	"y": 64
+},
+{
+	"type": "Closer",
+	"x": 11,
+	"y": 65
+},
+{
+	"type": "Closer",
+	"x": 12,
+	"y": 39
+},
+{
+	"type": "Closer",
+	"x": 11,
+	"y": 36
+},
+{
+	"type": "Closer",
+	"x": 9,
+	"y": 35
+},
+{
+	"type": "Closer",
+	"x": 7,
+	"y": 36
+},
+{
+	"type": "Closer",
+	"x": 6,
+	"y": 34
+},
+{
+	"type": "Closer",
+	"x": 15,
+	"y": 32
+},
+{
+	"type": "Chase",
+	"x": 90,
+	"y": 23
+},
+{
+	"type": "Chase",
+	"x": 2,
+	"y": 6
+},
+{
+	"type": "Chase",
+	"x": 2,
+	"y": 8
+},
+{
+	"type": "Chase",
+	"x": 2,
+	"y": 10
+},
+{
+	"type": "Chase",
+	"x": 51,
+	"y": 22
+},
+{
+	"type": "Chase",
+	"x": 49,
+	"y": 23
+},
+{
+	"type": "Chase",
+	"x": 95,
+	"y": 109
+},
+{
+	"type": "Chase",
+	"x": 96,
+	"y": 109
+},
+{
+	"type": "Snail",
+	"x": 12,
+	"y": 98
+}
+]

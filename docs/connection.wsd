@@ -1,0 +1,89 @@
+@startuml
+participant Soaprun
+participant Server
+participant Dispatch
+
+activate Soaprun
+
+== Initialization ==
+
+Soaprun --> Dispatch : Create TCP connection
+activate Dispatch
+Soaprun -> Dispatch : Hand-crafted HTTP 1.1 GET request
+Dispatch -> Soaprun : Server status, ip, port, comments
+deactivate Dispatch
+
+Soaprun --> Server : Create TCP connection
+activate Server
+Server -> Soaprun : "WLCM"
+
+Soaprun -> Server : "Prtc"
+Server -> Soaprun : "Soaprun", protocol version
+
+loop 4 Times
+Soaprun -> Server : "Test", 508 bytes of data
+Server -> Soaprun : "Test", 508 bytes of data
+end loop
+
+Soaprun -> Server : "Dlog", fps information
+Server -> Soaprun : "Void"
+
+Soaprun -> Server : "mAtt"
+Server -> Soaprun : Width, height, tile attributes
+
+== Main Game Loop ==
+
+loop until game over
+    group Special Packets
+        alt Room
+        Soaprun -> Server : "Room", x, y
+        Server -> Soaprun : x, y, room data
+        end
+    end
+    group Update Packets
+        alt myPo
+        Soaprun -> Server : "myPo", position info
+        Server -> Server : Update player position
+        
+        else ChCl
+        Soaprun -> Server : "ChCl", new color, position info
+        Server -> Server : Update player color and position
+
+        else HVen
+        Soaprun -> Server : "HVen", position info
+        Server -> Server : Turn player into ghost and update position
+
+        else HNPU
+        Soaprun -> Server : "HNPU", position info
+        Server -> Server : Process player-entity collision and update position
+
+        else DrFl
+        Soaprun -> Server : "DrFl", x, y, tile, position info
+        Server -> Server : Update tile and player position
+
+        end
+        Server -> Soaprun : "Flds", player state, player positions,\nentity positions, updated tiles
+    end
+
+    group Void Packets
+        alt Dlog
+        Soaprun -> Server : "Dlog", message
+        Server -> Server : Log message
+
+        else Bye.
+        Soaprun -> Server : "Bye."
+        Server -> Server : Remove player from game
+
+        else mCrp
+        Soaprun -> Server : "mCrp", x, y
+        Server -> Server : Spawn corpse at position
+
+        end
+        Server -> Soaprun : "Void"
+    end
+end
+
+deactivate Server
+deactivate Soaprun
+
+@enduml
