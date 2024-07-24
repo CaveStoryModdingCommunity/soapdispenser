@@ -186,7 +186,7 @@ impl SoaprunServer {
             }
         }
 
-        match (predators.len() != 0, prey.len() != 0) {
+        match (!predators.is_empty(), !prey.is_empty()) {
             //no one close, go home
             (false, false) => {
                 if pos != spawn_pos {
@@ -479,7 +479,7 @@ impl SoaprunServer {
                             drop(entity_w);
 
                             for (_, p) in self.players.read().unwrap().iter() {
-                                if set.len() == 0 {
+                                if set.is_empty() {
                                     break
                                 }
                                 let pr = p.read().unwrap();
@@ -494,7 +494,7 @@ impl SoaprunServer {
                                 EntityProperties::SwitchedDirection(sd) => sd,
                                 _ => unreachable!()
                             };
-                            if set.len() == 0 {
+                            if set.is_empty() {
                                 entity_w.unit.direction = prop.on_dir;
                                 entity_w.counter = self.get_entity_delay(Duration::from_secs(5))
                             } else {

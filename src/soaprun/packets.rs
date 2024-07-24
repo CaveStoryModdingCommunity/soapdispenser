@@ -228,7 +228,7 @@ pub fn read_packet(stream: &mut TcpStream) -> Result<ClientPackets,ReadPacketErr
                 Err(_) => return Err(ReadPacketErrors::InvalidDataError { packet_type: std::str::from_utf8(&PACKET_TYPE_DEBUG_LOG).unwrap().to_owned(), data: data_buff }),
             }
             },
-        PACKET_TYPE_MAP_ATTRIBUTES => if data_buff.len() == 0
+        PACKET_TYPE_MAP_ATTRIBUTES => if data_buff.is_empty()
             {
                 ClientPackets::MapAttributeRequest
             }
@@ -308,7 +308,7 @@ pub fn read_packet(stream: &mut TcpStream) -> Result<ClientPackets,ReadPacketErr
                 Ok(movements) => ClientPackets::Heaven { movements: movements },
                 Err(exp) => return Err(ReadPacketErrors::UnexpectedDataAmount { got: data_buff.len(), expected: data_buff.len() + exp })
             },
-        PACKET_TYPE_BYE => if data_buff.len() == 0
+        PACKET_TYPE_BYE => if data_buff.is_empty()
             {
                 ClientPackets::Bye
             }

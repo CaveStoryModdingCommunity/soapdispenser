@@ -141,7 +141,7 @@ impl Client {
             client.soaprunner.movements.iter().map(|p| { p.to_string() }).collect::<Vec<String>>().join(" -> "),
             movements.iter().map(|p| { p.to_string() }).collect::<Vec<String>>().join(" -> ")
         );
-        if movements.len() <= 0 {
+        if movements.is_empty() {
             return Ok(0)
         }
         let mut total = 0;
@@ -277,13 +277,16 @@ impl SoaprunServer {
         let color = client.soaprunner.color;
         let items = client.soaprunner.items;
         let num = client.number;
-        let mut tiles = Vec::new();
-        //TODO remove clone
-        for r in client.room.clone() {
-            if let Some(t) = client.cached_tiles.get_mut(&r) {
+        let mut tiles = Vec::new();        
+        let mut cached_tiles = std::mem::take(&mut client.cached_tiles);
+
+        for r in client.room.iter() {
+            if let Some(t) = cached_tiles.get_mut(&r) {
                 tiles.extend(t.drain().map(|(p, tile)| { ChangedTile::new(p.x, p.y, tile) }))
             }
         }
+
+        client.cached_tiles = cached_tiles;
         drop(client);
 
         let players = match self.players.read() {
