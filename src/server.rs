@@ -31,6 +31,8 @@ use clients::*;
 mod entities;
 use entities::*;
 mod position_extensions;
+mod stream;
+pub use stream::*;
 
 pub const PROTOCOL_NAME : &[u8; PROTOCOL_BUFFER_SIZE] = b"Soaprun\0";
 pub const PROTOCOL_VERSION : u16 = 64;
@@ -171,7 +173,11 @@ impl SoaprunServer
             {
                 Ok(stream) => {
                     thread::spawn(|| {
-                        self.client_handler(stream)
+                        match probe_stream(stream)
+                        {
+                            Ok(stream) => self.client_handler(stream),
+                            Err(e) => eprintln!("Error probing incoming connection: {:?}", e),
+                        }
                     });
                 },
                 Err(e) => {
