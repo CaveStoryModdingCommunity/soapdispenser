@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::net::TcpStream;
 use std::{collections::HashMap, time::Duration};
 use std::sync::atomic::Ordering;
 
@@ -18,7 +17,7 @@ use crate::soaprun::map_attributes::{DRAW_TILES, MAKE_CORPSE_TILES};
 
 use super::map_attributes::CANVAS_TILES;
 use super::position_extensions::DirectionFlags;
-use super::{MAX_X_COORD, MAX_Y_COORD, MIN_X_COORD, MIN_Y_COORD, PROTOCOL_NAME, PROTOCOL_VERSION};
+use super::{FramedStream, MAX_X_COORD, MAX_Y_COORD, MIN_X_COORD, MIN_Y_COORD, PROTOCOL_NAME, PROTOCOL_VERSION};
 use super::{Entity, RoomCoordinates, SoaprunServer};
 
 
@@ -259,7 +258,7 @@ impl Client {
 }
 
 impl SoaprunServer {
-    fn update_client_and_send_fields(&self, stream: &mut TcpStream, mut client: RwLockWriteGuard<Client>, movements: Vec<Position>) -> Result<bool, std::io::Error>
+    fn update_client_and_send_fields(&self, stream: &mut dyn FramedStream, mut client: RwLockWriteGuard<Client>, movements: Vec<Position>) -> Result<bool, std::io::Error>
     {
         let valid = match Client::update_position(&mut client, &movements, self) {
             Ok(_) => true,
@@ -409,24 +408,25 @@ impl SoaprunServer {
             },
         }
     }
-    pub fn client_handler(&self, mut stream: TcpStream)
+    pub fn client_handler(&self, mut stream: Box<dyn FramedStream>)
     {
+        let stream = stream.as_mut();
         let (num, client) = match self.borrow_player() {
             Ok(n) => n,
             Err(_) => return,
         };
 
         println!("Welcome player {num}!");
-        if let Ok(_) = write_packet(&mut stream, ServerPackets::Welcome)
+        if let Ok(_) = write_packet(stream, ServerPackets::Welcome)
         {
             loop {
-                match read_packet(&mut stream)
+                match read_packet(stream)
                 {
                     Ok(packet) => match packet
                     {
                         ClientPackets::ProtocolRequest { game_version } => {
                             println!("Player {num} is requesting the server Protocol from game version {game_version}");
-                            if let Err(_) = write_packet(&mut stream, ServerPackets::Protocol {
+                            if let Err(_) = write_packet(stream, ServerPackets::Protocol {
                                 protocol: *PROTOCOL_NAME,
                                 version: PROTOCOL_VERSION
                             }) {
@@ -435,19 +435,19 @@ impl SoaprunServer {
                         },
                         ClientPackets::ConnectionTest { data } => {
                             println!("Player {num} is testing their connection...");
-                            if let Err(_) = write_packet(&mut stream, ServerPackets::ConnectionTest { data: data }) {
+                            if let Err(_) = write_packet(stream, ServerPackets::ConnectionTest { data: data }) {
                                 break
                             }
                         },
                         ClientPackets::LogDebugMessage { message } => {
                             println!("Debug message from player {num}: {message}");
-                            if let Err(_) = write_packet(&mut stream, ServerPackets::Void) {
+                            if let Err(_) = write_packet(stream, ServerPackets::Void) {
                                 break
                             }
                         },
                         ClientPackets::MapAttributeRequest => {
                             println!("Player {num} wants the map attributes");
-                            if let Err(_) = write_packet(&mut stream, ServerPackets::MapAttributesResponse {
+                            if let Err(_) = write_packet(stream, ServerPackets::MapAttributesResponse {
                                 map_attributes: &self.map_attributes
                             } ) {
                                 break
@@ -462,7 +462,7 @@ impl SoaprunServer {
                                 }
                                 drop(cw);
                                 let r = room.read().unwrap();
-                                if let Err(_) = write_packet(&mut stream, ServerPackets::RoomResponse {
+                                if let Err(_) = write_packet(stream, ServerPackets::RoomResponse {
                                     coords: coords,
                                     room: &r
                                 }) {
@@ -470,7 +470,7 @@ impl SoaprunServer {
                                 }
                             }
                             else {
-                                if let Err(_) = write_packet(&mut stream, ServerPackets::RoomResponse {
+                                if let Err(_) = write_packet(stream, ServerPackets::RoomResponse {
                                     coords: coords,
                                     room: &self.default_room
                                 }) {
@@ -489,7 +489,7 @@ impl SoaprunServer {
                                     3 => SoaprunnerColors::Yellow,
                                     _ => cw.soaprunner.color
                                 };
-                                match self.update_client_and_send_fields(&mut stream, cw, movements) {
+                                match self.update_client_and_send_fields(stream, cw, movements) {
                                     Ok(true) => {},
                                     Ok(false) | Err(_) => break,
                                 }
@@ -500,7 +500,7 @@ impl SoaprunServer {
                             }
                         },
                         ClientPackets::MyPosition { movements } => {
-                            match self.update_client_and_send_fields(&mut stream, client.write().unwrap(), movements) {
+                            match self.update_client_and_send_fields(stream, client.write().unwrap(), movements) {
                                 Ok(true) => {},
                                 Ok(false) | Err(_) => break,
                             }
@@ -510,7 +510,7 @@ impl SoaprunServer {
                             let state = client.read().unwrap().soaprunner.sprite;
                             if matches!(state, SoaprunnerSprites::Walking) { //idle players can't draw
                                 let _ = self.try_draw_on_field(&position, tile);
-                                match self.update_client_and_send_fields(&mut stream,  client.write().unwrap(), movements) {
+                                match self.update_client_and_send_fields(stream,  client.write().unwrap(), movements) {
                                     Ok(true) => {},
                                     Ok(false) | Err(_) => break,
                                 }
@@ -527,7 +527,7 @@ impl SoaprunServer {
                                 //aquiring two locks is a little annoying
                                 //but we NEED to have control over when the write lock ends during collision to avoid deadlocks with entities
                                 self.handle_collision(client.write().unwrap(), index);
-                                match self.update_client_and_send_fields(&mut stream, client.write().unwrap(), movements) {
+                                match self.update_client_and_send_fields(stream, client.write().unwrap(), movements) {
                                     Ok(true) => {},
                                     Ok(false) | Err(_) => break,
                                 }
@@ -546,7 +546,7 @@ impl SoaprunServer {
                                     drop(cw);
                                     //try_spawn_corpse needs write access to every client
                                     let _ = self.try_spawn_corpse(&position);
-                                    if let Err(_) = write_packet(&mut stream, ServerPackets::Void) {
+                                    if let Err(_) = write_packet(stream, ServerPackets::Void) {
                                         break
                                     }
                                 },
@@ -566,7 +566,7 @@ impl SoaprunServer {
                         },
                         ClientPackets::Bye => {
                             println!("Goodbye player {num}!");
-                            let _ = write_packet(&mut stream, ServerPackets::Void);
+                            let _ = write_packet(stream, ServerPackets::Void);
                             break
                         },
                         ClientPackets::Heaven { movements } => {
@@ -577,7 +577,7 @@ impl SoaprunServer {
                                 Client::drop_shield(client.write().unwrap(), self);
                                 let mut cw = client.write().unwrap();
                                 cw.soaprunner.sprite = SoaprunnerSprites::Ghost;
-                                match self.update_client_and_send_fields(&mut stream, cw, movements) {
+                                match self.update_client_and_send_fields(stream, cw, movements) {
                                     Ok(true) => {},
                                     Ok(false) | Err(_) => break,
                                 }

@@ -1,13 +1,14 @@
-use std::{io::Write, net::TcpStream};
-use std::io::{Error, ErrorKind, Read};
+use std::io::{Error, ErrorKind};
 
 use thiserror::Error;
 
-use super::units::Unit;
+use crate::server::FramedStream;
+
 use super::map_attributes::MapAttributes;
 use super::position::Position;
 use super::rooms::*;
 use super::soaprunners::*;
+use super::units::Unit;
 
 pub const CONNECTION_TEST_DATA_SIZE : usize = 508;
 pub enum ClientPackets {
@@ -175,24 +176,13 @@ fn read_movements(data: &[u8]) -> Result<Vec<Position>,usize>
     Ok(movements)
 }
 
-pub fn read_packet(stream: &mut TcpStream) -> Result<ClientPackets,ReadPacketErrors>
+pub fn read_packet(stream: &mut dyn FramedStream) -> Result<ClientPackets, ReadPacketErrors>
 {
-    let mut length_buff = [0; 4];
-    stream.read_exact(&mut length_buff)?;
-    let length = u32::from_le_bytes(length_buff);
-    
-    if length < MIN_PACKET_LENGTH as u32 {
-        return Err(ReadPacketErrors::InvalidLengthError { length: length });
-    }
-
-    let mut type_buff = [0; 4];
-    stream.read_exact(&mut type_buff)?;
-
-    let mut data_buff = vec![0u8; (length-4) as usize];
-    if (length - 4) > 0
-    {
-        stream.read_exact(&mut data_buff)?
-    }
+    let packet_buff = stream.read_packet()?;
+    let (&type_buff, data_buff) = packet_buff.split_first_chunk::<4>()
+        .ok_or(ReadPacketErrors::InvalidLengthError {
+            length: packet_buff.len() as u32,
+        })?;
 
     let packet = match type_buff
     {
@@ -225,7 +215,10 @@ pub fn read_packet(stream: &mut TcpStream) -> Result<ClientPackets,ReadPacketErr
             match std::str::from_utf8(&data_buff[4..])
             {
                 Ok(msg) => ClientPackets::LogDebugMessage { message: msg.to_string() },
-                Err(_) => return Err(ReadPacketErrors::InvalidDataError { packet_type: std::str::from_utf8(&PACKET_TYPE_DEBUG_LOG).unwrap().to_owned(), data: data_buff }),
+                Err(_) => return Err(ReadPacketErrors::InvalidDataError { 
+                    packet_type: std::str::from_utf8(&PACKET_TYPE_DEBUG_LOG).unwrap().to_owned(), 
+                    data: packet_buff
+                }),
             }
             },
         PACKET_TYPE_MAP_ATTRIBUTES => if data_buff.is_empty()
@@ -326,7 +319,7 @@ pub fn read_packet(stream: &mut TcpStream) -> Result<ClientPackets,ReadPacketErr
 }
 
 
-pub fn write_packet(stream: &mut TcpStream, packet: ServerPackets) -> Result<(), Error>
+pub fn write_packet(stream: &mut dyn FramedStream, packet: ServerPackets) -> Result<(), Error> 
 {
     match packet {
         ServerPackets::Welcome =>
@@ -426,15 +419,14 @@ pub fn write_packet(stream: &mut TcpStream, packet: ServerPackets) -> Result<(),
     }
 }
 
-fn send_bodyless_packet(stream: &mut TcpStream, packet_type: &[u8; 4]) -> Result<(), Error>
-{
-    let mut packet: [u8; 8] = [4,0,0,0,0,0,0,0];
-    packet[4..].copy_from_slice(packet_type);
-    return stream.write_all(&packet);
+fn send_bodyless_packet(stream: &mut dyn FramedStream, packet_type: &[u8; 4]) -> Result<(), Error> {
+    stream.write_packet(packet_type.to_vec())
 }
 
-fn send_body_packet(stream: &mut TcpStream, packet_type: &[u8; 4], packet_data: &[u8]) -> Result<(), Error>
-{
-    let len = (packet_type.len() + packet_data.len()) as u32;
-    return stream.write_all(&[&len.to_le_bytes(), packet_type, packet_data].concat());
+fn send_body_packet(
+    stream: &mut dyn FramedStream,
+    packet_type: &[u8; 4],
+    packet_data: &[u8],
+) -> Result<(), Error> {
+    stream.write_packet([packet_type, packet_data].concat())
 }
