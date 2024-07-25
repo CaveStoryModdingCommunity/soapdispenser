@@ -193,6 +193,7 @@ pub fn verify_rooms(rooms: &HashMap<RoomCoordinates, Room>, default_room: &Room,
 impl SoaprunServer {
     pub fn get_tile(&self, pos: &Position, room: &RoomCoordinates) -> Result<u8,()> {
         let index = pos.to_index(room)?;
+        println!("Getting room {room} for reading a tile");
         Ok(match self.rooms.get(room) {
             Some(r) => r.read().unwrap().data[index],
             None => self.default_room.data[index],

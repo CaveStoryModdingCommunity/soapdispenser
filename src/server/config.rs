@@ -16,6 +16,8 @@ pub struct ServerConfig
     pub room_verification_mode: RoomVerificationModes,
     pub entity_path: PathBuf,
     pub attributes_path: PathBuf,
+    pub connection_timeout: u64,
+    pub idle_timeout: u64,
     pub max_players: u32,
     pub max_player_movement_nodes_per_packet: u32,
     pub max_player_distance_per_movement_node: u32,

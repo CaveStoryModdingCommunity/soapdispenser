@@ -51,6 +51,8 @@ pub struct SoaprunServer
     //the number of entities is fixed, so we never need to lock the collection as a whole, just the elements
     entities: Vec<RwLock<Entity>>,
 
+    connection_timeout: u64,
+    idle_timeout: u64,
     max_player_movement_nodes_per_packet: usize,
     max_player_distance_per_movement_node: usize,
     max_player_distance_per_packet: usize,
@@ -121,6 +123,9 @@ impl SoaprunServer
 
                 players_with_shield: AtomicUsize::new(0),
 
+                connection_timeout: config.connection_timeout,
+                idle_timeout: config.idle_timeout,
+
                 max_player_movement_nodes_per_packet: config.max_player_movement_nodes_per_packet as usize,
                 max_player_distance_per_movement_node: config.max_player_distance_per_movement_node as usize,
                 max_player_distance_per_packet: config.max_player_distance_per_packet as usize,
@@ -149,14 +154,16 @@ impl SoaprunServer
         self.players.write().unwrap().insert(num, client.clone());
         Ok((num, client))
     }
-    fn return_player(&self, client: Arc<RwLock<Client>>) -> Result<(),()>
+    fn return_player(&self, client: Arc<RwLock<Client>>, num: usize) -> Result<(),()>
     {
-        let num = client.read().unwrap().number;
+        println!("Removing player from list");
         match self.players.write().unwrap().remove(&num) {
             Some(_) => println!("Removed player {num}"),
             None => println!("Player wasn't in the list...?!"),
         };
+        println!("Removing player from list");
         self.player_numbers.lock().unwrap().push(Reverse(num));
+        println!("Player fully removed");
         drop(client);
         Ok(())
     }
@@ -172,10 +179,16 @@ impl SoaprunServer
             match acc_res
             {
                 Ok(stream) => {
+                    stream.set_nodelay(true).expect("Unable to disable delay!");
+                    if self.connection_timeout > 0 {
+                        let dur = Some(Duration::from_secs(self.connection_timeout));
+                        let _ = stream.set_read_timeout(dur);
+                        let _ = stream.set_write_timeout(dur);
+                    }
                     thread::spawn(|| {
                         match probe_stream(stream)
                         {
-                            Ok(stream) => self.client_handler(stream),
+                            Ok(stream) => self.client_handler(stream, self.idle_timeout),
                             Err(e) => eprintln!("Error probing incoming connection: {:?}", e),
                         }
                     });
