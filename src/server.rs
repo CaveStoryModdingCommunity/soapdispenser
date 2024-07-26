@@ -6,11 +6,7 @@ use std::thread;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
-#[cfg(debug_assertions)]
-use no_deadlocks::{Mutex, RwLock};
-#[cfg(not(debug_assertions))]
-use std::sync::{Mutex, RwLock};
-
+use parking_lot::{Mutex, RwLock};
 use rand::distributions::{Distribution, WeightedIndex};
 use rand::thread_rng;
 use thiserror::Error;
@@ -146,24 +142,21 @@ impl SoaprunServer
     }
     fn borrow_player(&self) -> Result<(usize, Arc<RwLock<Client>>), ()>
     {
-        let num = match self.player_numbers.lock().unwrap().pop() {
+        let num = match self.player_numbers.lock().pop() {
             Some(num) => num.0,
             None => return Err(()),
         };
         let client = Arc::new(RwLock::new(Client::new(num, self.get_player_color())));
-        self.players.write().unwrap().insert(num, client.clone());
+        self.players.write().insert(num, client.clone());
         Ok((num, client))
     }
     fn return_player(&self, client: Arc<RwLock<Client>>, num: usize) -> Result<(),()>
     {
-        println!("Removing player from list");
-        match self.players.write().unwrap().remove(&num) {
+        match self.players.write().remove(&num) {
             Some(_) => println!("Removed player {num}"),
-            None => println!("Player wasn't in the list...?!"),
+            None => eprintln!("Tried to remove player {num}, but they weren't in the list...?!"),
         };
-        println!("Removing player from list");
-        self.player_numbers.lock().unwrap().push(Reverse(num));
-        println!("Player fully removed");
+        self.player_numbers.lock().push(Reverse(num));
         drop(client);
         Ok(())
     }

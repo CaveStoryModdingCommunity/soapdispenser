@@ -193,9 +193,8 @@ pub fn verify_rooms(rooms: &HashMap<RoomCoordinates, Room>, default_room: &Room,
 impl SoaprunServer {
     pub fn get_tile(&self, pos: &Position, room: &RoomCoordinates) -> Result<u8,()> {
         let index = pos.to_index(room)?;
-        println!("Getting room {room} for reading a tile");
         Ok(match self.rooms.get(room) {
-            Some(r) => r.read().unwrap().data[index],
+            Some(r) => r.read().data[index],
             None => self.default_room.data[index],
         })
     }
@@ -210,7 +209,7 @@ impl SoaprunServer {
         let mut tiles = Vec::with_capacity(4);
         for r in self.get_affected_inbounds_rooms(&pos) {
             let index = pos.to_index(&r).unwrap(); //using to_index on an affected room is always safe
-            let room = self.rooms[&r].read().unwrap();
+            let room = self.rooms[&r].read();
             tiles.push(room.data[index]);
         }
         tiles
@@ -221,13 +220,13 @@ impl SoaprunServer {
         let mut count = 0;
         for r in self.get_affected_inbounds_rooms(&pos) {
             let index = pos.to_index(&r).unwrap();
-            let mut room = self.rooms[&r].write().unwrap();
+            let mut room = self.rooms[&r].write();
             
             if valid_tiles.contains(&room.data[index]) {
                 let new_val = f(room.data[index]);
                 room.data[index] = new_val;
-                for (_, p) in self.players.read().unwrap().iter() {
-                    let mut pw = p.write().unwrap();
+                for (_, p) in self.players.read().iter() {
+                    let mut pw = p.write();
                     if !pw.cached_tiles.contains_key(&r) {
                         pw.cached_tiles.insert(r, HashMap::new());
                     }

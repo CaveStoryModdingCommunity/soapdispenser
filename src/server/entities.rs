@@ -1,15 +1,12 @@
 use std::{collections::HashSet, thread::sleep, time::Duration};
 use std::sync::atomic::Ordering;
 
-#[cfg(debug_assertions)]
-use no_deadlocks::{RwLock, RwLockWriteGuard};
-#[cfg(not(debug_assertions))]
-use std::sync::{RwLock, RwLockWriteGuard};
+use parking_lot::{RwLock, RwLockWriteGuard};
+use rand::{seq::SliceRandom, thread_rng};
 
 use crate::soaprun::position::Position;
 use crate::soaprun::units::{Unit, UnitStates, UnitTypes};
 use crate::soaprun::soaprunners::{SoaprunnerSprites, SoaprunnerItems};
-use rand::{seq::SliceRandom, thread_rng};
 
 use super::map_attributes::REMOVE_CORPSE_TILES;
 use super::position_extensions::DirectionFlags;
@@ -145,7 +142,7 @@ impl SoaprunServer {
     fn get_invalid_entity_movements(&self, pos: Position) -> DirectionFlags {
         let mut dir = DirectionFlags::empty();
         for e in self.entities.iter() {
-            let ep = *e.read().unwrap().unit.movements.last().unwrap();
+            let ep = *e.read().unit.movements.last().unwrap();
             if pos.adjacent_exclusive(&ep) {
                 dir |= pos.relative_direction(&ep)
             }
@@ -153,8 +150,8 @@ impl SoaprunServer {
         dir
     }
 
-    fn get_closer_movement_options(&self, unit: &RwLock<Entity>) -> Option<Vec<Position>> {
-        let entity_r = unit.read().unwrap();
+    fn get_closer_movement_options(&self, entity: &RwLock<Entity>) -> Option<Vec<Position>> {
+        let entity_r = entity.read();
         let pos = *entity_r.unit.movements.last().unwrap();
         let spawn_pos = entity_r.spawn_position;
         let scared = matches!(entity_r.unit.unit_type, UnitTypes::Wuss);
@@ -169,10 +166,9 @@ impl SoaprunServer {
 
         let mut predators = Vec::new();
         let mut prey = Vec::new();
-
-        let players = self.players.read().unwrap();
-        for (_, p) in players.iter() {
-            let pr = p.read().unwrap();
+        
+        for (_, p) in self.players.read().iter() {
+            let pr = p.read();
             if matches!(pr.soaprunner.sprite, SoaprunnerSprites::Idle | SoaprunnerSprites::Walking) {
                 let pp = pr.soaprunner.movements.last().unwrap();
                 if n <= pp.y && pp.y <= s
@@ -236,14 +232,13 @@ impl SoaprunServer {
             return adj_positions
         }
 
-        let players = self.players.read().unwrap();
-        for (_, p) in players.iter() {
+        for (_, p) in self.players.read().iter() {
             if include_flags.is_all() {
                 break
             }
 
             let player_pos = {
-                let pr = p.read().unwrap();
+                let pr = p.read();
                 if matches!(pr.soaprunner.sprite, SoaprunnerSprites::Idle | SoaprunnerSprites::Walking) {
                     *pr.soaprunner.movements.last().unwrap()
                 } else {
@@ -286,9 +281,8 @@ impl SoaprunServer {
     fn get_chase_movement_options(&self, pos: Position) -> Vec<Position> {
         let mut targets = Vec::with_capacity(self.players_with_shield.load(Ordering::Relaxed));
 
-        let players = self.players.read().unwrap();
-        for (_, p) in players.iter() {
-            let pr = p.read().unwrap();
+        for (_, p) in self.players.read().iter() {
+            let pr = p.read();
             if matches!(pr.soaprunner.sprite, SoaprunnerSprites::Idle | SoaprunnerSprites::Walking)
             && pr.soaprunner.items.contains(SoaprunnerItems::Shield) {
                 targets.push(*pr.soaprunner.movements.last().unwrap())
@@ -314,9 +308,8 @@ impl SoaprunServer {
         let e = pos.x.saturating_add(radius);
         let s = pos.y.saturating_add(radius);
 
-        let players = self.players.read().unwrap();
-        for (_, p) in players.iter() {
-            let pr = p.read().unwrap();
+        for (_, p) in self.players.read().iter() {
+            let pr = p.read();
             if matches!(pr.soaprunner.sprite, SoaprunnerSprites::Idle | SoaprunnerSprites::Walking) {
                 let pp = pr.soaprunner.movements.last().unwrap();
                 if n <= pp.y && pp.y <= s
@@ -337,8 +330,8 @@ impl SoaprunServer {
     
     pub fn entity_handler(&self) {
         loop {
-            for unit in &self.entities {
-                let entity_r = unit.read().unwrap();
+            for entity in &self.entities {
+                let entity_r = entity.read();
                 //anything with => { } doesn't move/need to be updated here
                 match entity_r.unit.unit_type {
                     //these don't do anything, so...
@@ -349,12 +342,12 @@ impl SoaprunServer {
                         match entity_r.unit.unit_state {
                             UnitStates::Sleeping | UnitStates::Active => {
                                 drop(entity_r);
-                                if let Some(entity_w) = Entity::wait(unit.write().unwrap()) {
+                                if let Some(entity_w) = Entity::wait(entity.write()) {
                                     let curr_pos = *entity_w.unit.movements.last().unwrap();
                                     drop(entity_w);
-                                    let options = self.get_closer_movement_options(unit);
+                                    let options = self.get_closer_movement_options(entity);
                                     
-                                    let mut entity_w = unit.write().unwrap();
+                                    let mut entity_w = entity.write();
                                     match options {
                                         Some(opts) => {
                                             if let Some(new_pos) = opts.choose(&mut thread_rng()) {
@@ -374,7 +367,7 @@ impl SoaprunServer {
                             },
                             UnitStates::Corpse => {
                                 drop(entity_r);
-                                if let Some(mut entity_w) = Entity::wait(unit.write().unwrap()) {
+                                if let Some(mut entity_w) = Entity::wait(entity.write()) {
                                     entity_w.unit.unit_state = UnitStates::Sleeping;
                                     entity_w.unit.teleport_trigger = entity_w.unit.teleport_trigger.wrapping_add(1);
                                     entity_w.unit.movements = vec![entity_w.spawn_position];
@@ -390,14 +383,14 @@ impl SoaprunServer {
                             UnitStates::Sleeping => {
                                 //I have yet to see evidence of a sleeping Crawl, so this is a failsafe
                                 drop(entity_r);
-                                unit.write().unwrap().unit.unit_state = UnitStates::Active
+                                entity.write().unit.unit_state = UnitStates::Active
                             },
                             UnitStates::Active => {
                                 let last_pos = *entity_r.unit.movements.last().unwrap();
                                 let spawn_pos = entity_r.spawn_position;
                                 drop(entity_r);
 
-                                if let Some(mut entity_w) = Entity::wait(unit.write().unwrap()) {
+                                if let Some(mut entity_w) = Entity::wait(entity.write()) {
                                     if last_pos != spawn_pos {
                                         entity_w.unit.movements = vec![last_pos, spawn_pos];
                                         entity_w.counter = self.get_entity_delay(Duration::from_secs(1));
@@ -407,7 +400,7 @@ impl SoaprunServer {
                                         drop(entity_w);
                                         let targets = self.get_crawl_attack_locations(last_pos);
                                         if let Some(attack_pos) = targets.choose(&mut rand::thread_rng()) {
-                                            let mut entity_w = unit.write().unwrap();
+                                            let mut entity_w = entity.write();
                                             entity_w.unit.movements = vec![last_pos, *attack_pos];
                                             entity_w.counter = self.get_entity_delay(Duration::from_secs(1));
                                         }
@@ -416,7 +409,7 @@ impl SoaprunServer {
                             },
                             UnitStates::Corpse => {
                                 drop(entity_r);
-                                if let Some(mut entity_w) = Entity::wait(unit.write().unwrap()) {
+                                if let Some(mut entity_w) = Entity::wait(entity.write()) {
                                     entity_w.unit.unit_state = UnitStates::Active;
                                     entity_w.unit.teleport_trigger = entity_w.unit.teleport_trigger.wrapping_add(1);
                                     entity_w.unit.movements = vec![entity_w.spawn_position];
@@ -431,7 +424,7 @@ impl SoaprunServer {
                         match entity_r.unit.unit_state {
                             UnitStates::Sleeping => {
                                 drop(entity_r);
-                                if let Some(mut entity_w) = Entity::wait(unit.write().unwrap()) {
+                                if let Some(mut entity_w) = Entity::wait(entity.write()) {
                                     if self.players_with_shield.load(Ordering::Relaxed) > 0 {
                                         entity_w.unit.unit_state = UnitStates::Active;
                                     }
@@ -442,7 +435,7 @@ impl SoaprunServer {
                                     let pos = *entity_r.unit.movements.last().unwrap();
                                     drop(entity_r);
                                     let options = self.get_chase_movement_options(pos);
-                                    let mut entity_w = unit.write().unwrap();
+                                    let mut entity_w = entity.write();
                                     if let Some(opt) = options.choose(&mut thread_rng()) {
                                         entity_w.unit.movements = vec![pos, *opt];
                                     } else {
@@ -450,14 +443,14 @@ impl SoaprunServer {
                                     }
                                 } else {
                                     drop(entity_r);
-                                    let mut entity_w = unit.write().unwrap();
+                                    let mut entity_w = entity.write();
                                     entity_w.unit.unit_state = UnitStates::Sleeping;
                                     entity_w.unit.movements = vec![*entity_w.unit.movements.last().unwrap()]
                                 }
                             },
                             UnitStates::Corpse => {
                                 drop(entity_r);
-                                if let Some(mut entity_w) = Entity::wait(unit.write().unwrap()) {
+                                if let Some(mut entity_w) = Entity::wait(entity.write()) {
                                     entity_w.unit.unit_state = UnitStates::Sleeping;
                                     entity_w.unit.teleport_trigger = entity_w.unit.teleport_trigger.wrapping_add(1);
                                     entity_w.counter = self.get_entity_delay(Duration::from_secs(5));
@@ -475,21 +468,21 @@ impl SoaprunServer {
                         });
                         drop(entity_r);
 
-                        if let Some(entity_w) = Entity::wait(unit.write().unwrap()) {
+                        if let Some(entity_w) = Entity::wait(entity.write()) {
                             drop(entity_w);
 
-                            for (_, p) in self.players.read().unwrap().iter() {
+                            for (_, p) in self.players.read().iter() {
                                 if set.is_empty() {
                                     break
                                 }
-                                let pr = p.read().unwrap();
+                                let pr = p.read();
                                 if matches!(pr.soaprunner.sprite, SoaprunnerSprites::Idle | SoaprunnerSprites::Walking) {
                                     let pp = pr.soaprunner.movements.last().unwrap();
                                     set.remove(pp);
                                 }
                             }
 
-                            let mut entity_w = unit.write().unwrap();
+                            let mut entity_w = entity.write();
                             let prop = match &entity_w.properties {
                                 EntityProperties::SwitchedDirection(sd) => sd,
                                 _ => unreachable!()
@@ -504,7 +497,7 @@ impl SoaprunServer {
                     },
                     UnitTypes::Cross => {
                         drop(entity_r);
-                        if let Some(mut entity_w) = Entity::wait(unit.write().unwrap()) {
+                        if let Some(mut entity_w) = Entity::wait(entity.write()) {
                             entity_w.unit.direction = entity_w.unit.direction.wrapping_add(1) % 4;
                             entity_w.counter = self.get_entity_delay(Duration::from_secs(10));
                         }
@@ -521,11 +514,11 @@ impl SoaprunServer {
                                 let _ = self.try_update_tile(&pos, &*REMOVE_CORPSE_TILES, |t| { t - 16 });
                                 drop(entity_r);
 
-                                if let Some(entity_w) = Entity::wait(unit.write().unwrap()) {
+                                if let Some(entity_w) = Entity::wait(entity.write()) {
                                     drop(entity_w);
 
                                     let options = self.get_snail_movement_options(pos, radius);
-                                    let mut entity_w = unit.write().unwrap();
+                                    let mut entity_w = entity.write();
                                     match options {
                                         Some(o) => {
                                             entity_w.unit.unit_state = UnitStates::Active;
@@ -545,7 +538,7 @@ impl SoaprunServer {
                             },
                             UnitStates::Corpse => {
                                 drop(entity_r);
-                                if let Some(mut entity_w) = Entity::wait(unit.write().unwrap()) {
+                                if let Some(mut entity_w) = Entity::wait(entity.write()) {
                                     entity_w.unit.unit_state = UnitStates::Sleeping;
                                     entity_w.unit.teleport_trigger = entity_w.unit.teleport_trigger.wrapping_add(1);
                                     entity_w.unit.movements = vec![entity_w.spawn_position];

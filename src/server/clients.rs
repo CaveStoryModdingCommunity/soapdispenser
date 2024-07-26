@@ -3,11 +3,7 @@ use std::time::Instant;
 use std::{collections::HashMap, time::Duration};
 use std::sync::atomic::Ordering;
 
-#[cfg(debug_assertions)]
-use no_deadlocks::RwLockWriteGuard;
-#[cfg(not(debug_assertions))]
-use std::sync::RwLockWriteGuard;
-
+use parking_lot::RwLockWriteGuard;
 use thiserror::Error;
 
 use crate::soaprun::units::{UnitStates, UnitTypes};
@@ -197,7 +193,7 @@ impl Client {
         if !client.soaprunner.items.contains(SoaprunnerItems::Sword) {
             //holding two write locks here SHOULD be ok, since swords will never be locked by anyone other than soaprunners
             let mut sword = match context.entities.get(sword_index) {
-                Some(s) => s.write().unwrap(),
+                Some(s) => s.write(),
                 None => return, //TODO return on invalid sword???
             };
             if matches!(sword.unit.unit_state, UnitStates::Active) {
@@ -213,7 +209,7 @@ impl Client {
             let sword_index = client.claimed_sword.expect("Player had a sword without claiming one!");
             drop(client);
             let mut sword = context.entities.get(sword_index)
-                .expect("Player claimed an invalid sword!").write().unwrap();
+                .expect("Player claimed an invalid sword!").write();
             sword.unit.unit_state = UnitStates::Active;
             sword.unit.teleport_trigger = sword.unit.teleport_trigger.wrapping_add(1);
         }
@@ -222,7 +218,7 @@ impl Client {
         if !client.soaprunner.items.contains(SoaprunnerItems::Shield) {
             //holding two write locks here SHOULD be ok, since swords will never be locked by anyone other than soaprunners
             let mut sword = match context.entities.get(shield_index) {
-                Some(s) => s.write().unwrap(),
+                Some(s) => s.write(),
                 None => return, //TODO return on invalid shield???
             };
             if matches!(sword.unit.unit_state, UnitStates::Active) {
@@ -242,12 +238,12 @@ impl Client {
             drop(client);
 
             let mut shield = context.entities.get(claimed_shield)
-            .expect("Player claimed an invalid shield!").write().unwrap();
+            .expect("Player claimed an invalid shield!").write();
         
             //don't drop the shield on top of other entities
             if context.entities.iter().enumerate().any(|(n,e)| {
                 n != claimed_shield
-                && *e.read().unwrap().unit.movements.last().unwrap() == drop_pos
+                && *e.read().unit.movements.last().unwrap() == drop_pos
             }) {
                 shield.unit.movements = vec![shield.spawn_position];
             }
@@ -293,10 +289,8 @@ impl SoaprunServer {
         }
 
         client.cached_tiles = cached_tiles;
-        println!("Dropping player {num} before making packet");
         drop(client);
 
-        println!("Building fields packet for {num}");
         let packet = ServerPackets::Fields
         {
             client_state: sprite,
@@ -307,24 +301,19 @@ impl SoaprunServer {
                 _ => Weather::Rainy
             },
             //TODO data copying might be slow, but dealing with locks during sending would be worse I think
-            soaprunners: Vec::from_iter(self.players.read().unwrap().iter().filter_map(|(n,p)| {
+            soaprunners: Vec::from_iter(self.players.read().iter().filter_map(|(n,p)| {
                 if *n == num {
                     None
                 }
                 else {
-                    #[cfg(debug_assertions)]
-                    println!("Reading player {num} for sending");
-                    Some((*n, p.read().unwrap().soaprunner.clone()))
+                    Some((*n, p.read().soaprunner.clone()))
                 }
             }).take(CLIENT_MAX_PLAYERS)),
             entities: Vec::from_iter(self.entities.iter().enumerate().map(|(n,e)| {
-                #[cfg(debug_assertions)]
-                println!("Reading entity {n} for sending");
-                (n, e.read().unwrap().unit.clone())
+                (n, e.read().unit.clone())
             }).take(CLIENT_MAX_ENTITIES)),
             tiles: tiles
         };
-        println!("Built fields packet for {num}");
 
         write_packet(stream, packet)?;
         Ok(movement_update_result?)
@@ -351,9 +340,8 @@ impl SoaprunServer {
             Some(e) => e,
             None => return //TODO invalid collisions are ignored for now
         };
-        println!("Getting entity {entity_index}");
-        let colliding_r = colliding.read().unwrap();
-        println!("Got entity {entity_index}");
+        let colliding_r = colliding.read();
+
         //TODO tighten this behavior up after entity behavior has been verified
         if colliding_r.unit.movements.last().unwrap().taxicab_distance(client.soaprunner.movements.last().unwrap()) > 15 {
             return
@@ -367,10 +355,10 @@ impl SoaprunServer {
                     drop(colliding_r);
                     if client.soaprunner.items.contains(SoaprunnerItems::Sword) {
                         Client::add_kill(client, self);
-                        Entity::kill(colliding.write().unwrap(),Duration::from_secs(5), self);
+                        Entity::kill(colliding.write(),Duration::from_secs(5), self);
                     } else {
                         Client::kill(client);
-                        Entity::add_kill(colliding.write().unwrap());
+                        Entity::add_kill(colliding.write());
                     }
                 }
             },
@@ -382,14 +370,14 @@ impl SoaprunServer {
                 if matches!(colliding_r.unit.unit_state, UnitStates::Active) {
                     Client::add_kill(client, self);
                     drop(colliding_r);
-                    Entity::kill(colliding.write().unwrap(),Duration::from_secs(5), self);
+                    Entity::kill(colliding.write(),Duration::from_secs(5), self);
                 }
             },
             UnitTypes::Crawl => {
                 if client.soaprunner.items.contains(SoaprunnerItems::Sword) {
                     Client::add_kill(client, self);
                     drop(colliding_r);
-                    Entity::kill(colliding.write().unwrap(),Duration::from_secs(10), self);
+                    Entity::kill(colliding.write(),Duration::from_secs(10), self);
                 }
                 else {
                     Client::kill(client);
@@ -406,7 +394,7 @@ impl SoaprunServer {
                     if client.soaprunner.items.contains(SoaprunnerItems::Sword) {
                         Client::add_kill(client, self);
                         drop(colliding_r);
-                        Entity::kill(colliding.write().unwrap(), Duration::from_secs(5), self);
+                        Entity::kill(colliding.write(), Duration::from_secs(5), self);
                     } else {
                         Client::kill(client);
                     }
@@ -475,17 +463,12 @@ impl SoaprunServer {
                         ClientPackets::RoomRequest { coords } => {
                             println!("Player {num} wants the room at {coords}");
                             if let Some(room) = self.rooms.get(&coords) {
-                                println!("Player {num} got the room");
-                                let mut cw = client.write().unwrap();
-                                println!("Player {num} got themselves");
+                                let mut cw = client.write();
                                 if let Some(cache) = cw.cached_tiles.get_mut(&coords) {
                                     cache.clear();
                                 }
-                                println!("Dropping player {num} after clearing cache");
                                 drop(cw);
-                                println!("Reading room {coords} for Player {num}");
-                                let r = room.read().unwrap();
-                                println!("Got room {coords} for Player {num}");
+                                let r = room.read();
                                 if let Err(_) = write_packet(stream, ServerPackets::RoomResponse {
                                     coords: coords,
                                     room: &r
@@ -504,7 +487,7 @@ impl SoaprunServer {
                         },
                         ClientPackets::ChangeColor { color, movements } => {
                             println!("Player {num} wants to change color to {color}");
-                            let mut cw = client.write().unwrap();
+                            let mut cw = client.write();
                             if matches!(cw.soaprunner.sprite, SoaprunnerSprites::Walking) { //idle players can't change color
                                 cw.soaprunner.color = match color {
                                     0 => SoaprunnerColors::Green,
@@ -513,12 +496,9 @@ impl SoaprunServer {
                                     3 => SoaprunnerColors::Yellow,
                                     _ => cw.soaprunner.color
                                 };
+                                idle_timer = Instant::now(); //any valid change color request means they're not idle
                                 match self.update_client_and_send_fields(stream, cw, movements) {
-                                    Ok(t) => {
-                                        if t > 0 {
-                                            idle_timer = Instant::now()
-                                        }
-                                    },
+                                    Ok(_) => { },
                                     Err(_) => break,
                                 }
                             }
@@ -528,7 +508,7 @@ impl SoaprunServer {
                             }
                         },
                         ClientPackets::MyPosition { movements } => {
-                            match self.update_client_and_send_fields(stream, client.write().unwrap(), movements) {
+                            match self.update_client_and_send_fields(stream, client.write(), movements) {
                                 Ok(t) => {
                                     if t > 0 {
                                         idle_timer = Instant::now()
@@ -539,16 +519,12 @@ impl SoaprunServer {
                         },
                         ClientPackets::DrawOnField { position, tile, movements } => {
                             println!("Player {num} wants to change {position} to tile {tile}");
-                            let state = client.read().unwrap().soaprunner.sprite;
+                            let state = client.read().soaprunner.sprite;
                             if matches!(state, SoaprunnerSprites::Walking) { //idle players can't draw
                                 let _ = self.try_draw_on_field(&position, tile);
-                                println!("Getting client {num} for fields");
-                                match self.update_client_and_send_fields(stream,  client.write().unwrap(), movements) {
-                                    Ok(t) => {
-                                        if t > 0 {
-                                            idle_timer = Instant::now()
-                                        }
-                                    },
+                                idle_timer = Instant::now(); //any valid draw request means the player is still alive
+                                match self.update_client_and_send_fields(stream,  client.write(), movements) {
+                                    Ok(_) => { },
                                     Err(_) => break,
                                 }
                             }
@@ -559,19 +535,16 @@ impl SoaprunServer {
                         },
                         ClientPackets::HitNonPlayerUnit { index, movements } => {
                             println!("Player {num} has collided with entity {index}");
-                            let state = client.read().unwrap().soaprunner.sprite;
+                            let state = client.read().soaprunner.sprite;
                             if matches!(state, SoaprunnerSprites::Idle | SoaprunnerSprites::Walking) {
                                 //aquiring two locks is a little annoying
                                 //but we NEED to have control over when the write lock ends during collision to avoid deadlocks with entities
-                                println!("Getting client {num} for collision");
-                                self.handle_collision(client.write().unwrap(), index);
-                                println!("Getting client {num} for fields");
-                                match self.update_client_and_send_fields(stream, client.write().unwrap(), movements) {
-                                    Ok(t) => {
-                                        if t > 0 {
-                                            idle_timer = Instant::now()
-                                        }
-                                    },
+                                self.handle_collision(client.write(), index);
+                                //downside: a truly AFK player could have their timer reset while standing on top of an item spawn point
+                                //upside: a waiting player won't be screwed over right after they pick up an item they've been waiting for
+                                idle_timer = Instant::now();
+                                match self.update_client_and_send_fields(stream, client.write(), movements) {
+                                    Ok(_) => { },
                                     Err(_) => break,
                                 }
                             }
@@ -582,7 +555,7 @@ impl SoaprunServer {
                         },
                         ClientPackets::MakeCorpse { position } => {
                             println!("Player {num} wants to become a corpse at {position}");
-                            let mut cw = client.write().unwrap();
+                            let mut cw = client.write();
                             match (cw.has_made_corpse, matches!(cw.soaprunner.sprite, SoaprunnerSprites::Dying)) {
                                 (false, true) => {
                                     cw.has_made_corpse = true;
@@ -614,21 +587,15 @@ impl SoaprunServer {
                         },
                         ClientPackets::Heaven { movements } => {
                             println!("Player {num} would like to enter heaven");
-                            let state = client.read().unwrap().soaprunner.sprite;
+                            let state = client.read().soaprunner.sprite;
                             if matches!(state, SoaprunnerSprites::Idle | SoaprunnerSprites::Walking) {
-                                println!("Getting client {num} for sword drop");
-                                Client::return_sword(client.write().unwrap(), self);
-                                println!("Getting client {num} for shield drop");
-                                Client::drop_shield(client.write().unwrap(), self);
-                                println!("Getting client {num} for ghost/fields");
-                                let mut cw = client.write().unwrap();
+                                idle_timer = Instant::now(); //give the player a chance to see what happened
+                                Client::return_sword(client.write(), self);
+                                Client::drop_shield(client.write(), self);
+                                let mut cw = client.write();
                                 cw.soaprunner.sprite = SoaprunnerSprites::Ghost;
                                 match self.update_client_and_send_fields(stream, cw, movements) {
-                                    Ok(t) => {
-                                        if t > 0 {
-                                            idle_timer = Instant::now()
-                                        }
-                                    },
+                                    Ok(_) => { },
                                     Err(_) => break,
                                 }
                             }
@@ -645,11 +612,8 @@ impl SoaprunServer {
                 }
             }
         }
-        println!("Getting client {num} for sword drop");
-        Client::return_sword(client.write().unwrap(), self);
-        println!("Getting client {num} for shield drop");
-        Client::drop_shield(client.write().unwrap(), self);
-        println!("Returning client {num}");
+        Client::return_sword(client.write(), self);
+        Client::drop_shield(client.write(), self);
         let _ = self.return_player(client, num);
     }
 }
