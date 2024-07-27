@@ -4,6 +4,7 @@ use std::{
 };
 
 use websocket::{sync::{server::IntoWs, Client}, OwnedMessage};
+use crate::soaprun::packets::{MIN_PACKET_LENGTH, MAX_PACKET_LENGTH};
 
 pub trait FramedStream {
     fn read_packet(&mut self) -> Result<Vec<u8>, io::Error>;
@@ -19,6 +20,9 @@ impl FramedStream for FramedTcpStream {
         let mut length_buff = [0; 4];
         self.stream.read_exact(&mut length_buff)?;
         let length = u32::from_le_bytes(length_buff);
+        if (length as usize) < MIN_PACKET_LENGTH || MAX_PACKET_LENGTH < (length as usize) {
+            return Err(io::Error::from(io::ErrorKind::OutOfMemory));
+        }
 
         let mut data_buff = vec![0; length as usize];
         self.stream.read_exact(&mut data_buff)?;
@@ -68,7 +72,7 @@ fn accept_websocket(stream: TcpStream) -> Result<Client<TcpStream>, io::Error> {
     stream.set_nonblocking(false)?;
     let upgrade = stream.into_ws()
         .map_err(|_| io::Error::new(io::ErrorKind::Other, "Failed to upgrade to WebSocket"))?;
-    let stream = upgrade.accept()
+    let stream = upgrade.accept_with_limits(2*(4 + MAX_PACKET_LENGTH), 4 + MAX_PACKET_LENGTH)
         .map_err(|_| io::Error::new(io::ErrorKind::Other, "Failed to accept WebSocket"))?;
 
     Ok(stream)

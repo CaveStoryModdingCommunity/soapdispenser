@@ -124,8 +124,17 @@ pub const PACKET_TYPE_WELCOME : [u8; 4] = *b"WLCM";
 pub const PACKET_TYPE_FIELDS  : [u8; 4] = *b"Flds";
 pub const PACKET_TYPE_VOID    : [u8; 4] = *b"Void";
 
-
-const MIN_PACKET_LENGTH : usize = 4;
+//TODO this may be better off being a config option
+//since TECHNICALLY the largest valid packet is a debug message with u32::MAX(ish) characters
+//but the stock client will never send debug messages that long
+//so the most practical maximum is either
+//- the connection test (508 bytes)
+//- a draw request with the maximum movements (1026 bytes)
+//I'm not sure how bad your internet would have to be for the latter to be sent though
+//or if the client can even queue up 256 movement nodes to be sent
+//so more research is necessary
+pub const MAX_PACKET_LENGTH : usize = 5 + MAX_MOVEMENTS_LENGTH;
+pub const MIN_PACKET_LENGTH : usize = 4;
 #[derive(Error, Debug)]
 pub enum ReadPacketErrors
 {
@@ -150,6 +159,7 @@ pub enum ReadPacketErrors
         data: Vec<u8>
     }
 }
+const MAX_MOVEMENTS_LENGTH : usize = 1 + (u8::MAX as usize * 4);
 //On error, returns how many bytes were missing
 fn read_movements(data: &[u8]) -> Result<Vec<Position>,usize>
 {
@@ -211,7 +221,7 @@ pub fn read_packet(stream: &mut dyn FramedStream) -> Result<ClientPackets, ReadP
             let strlen = u32::from_le_bytes(data_buff[0..4].try_into().unwrap());
             if data_buff.len() != 4 + strlen as usize {
                 return Err(ReadPacketErrors::UnexpectedDataAmount { got: data_buff.len(), expected: 4 + strlen as usize })
-            } 
+            }
             match std::str::from_utf8(&data_buff[4..])
             {
                 Ok(msg) => ClientPackets::LogDebugMessage { message: msg.to_string() },
